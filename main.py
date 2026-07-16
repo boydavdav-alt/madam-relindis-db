@@ -8,93 +8,62 @@ from docx.oxml.ns import nsdecls
 from docx.enum.section import WD_ORIENT
 from docx.shared import Inches
 import io
+import os
 
 ADMIN_PASSWORD = "12"
+DB_FILE = "database.csv" # THIS IS THE KEY - SAVES DATA
 
 st.set_page_config(page_title="MADAM RELINDIS DATABASE SYSTEM", layout="wide")
 
 # ===== YOUR FULL DESIGN - COLORS + BORDERS + BOLD =====
 st.markdown("""
 <style>
-/* MAKE EVERYTHING BOLD */
-html, body, div, input, button, p, label, h1, h2, h3, h4, h5, h6 {
-    font-weight: 900!important;
-}
-
-/* ANIMATED TITLE WITH THICK BORDER */
-.animated-title {
-    text-align: center;
-    font-size: 38px;
-    font-weight: 900;
-    background: linear-gradient(90deg, #FF0000, #FF7F00, #FFFF00, #00FF00, #0000FF, #4B0082, #8B00FF);
-    background-size: 400% 400%;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: rainbow 3s linear infinite;
-    padding: 20px;
-    border: 4px solid #1E3A8A;
-    border-radius: 12px;
-    background-color: #F0F8FF;
-}
+html, body, div, input, button, p, label, h1, h2, h3, h4, h5, h6 {font-weight: 900!important;}
+.animated-title {text-align: center; font-size: 38px; font-weight: 900; background: linear-gradient(90deg, #FF0000, #FF7F00, #FFFF00, #00FF00, #0000FF, #4B0082, #8B00FF); background-size: 400% 400%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: rainbow 3s linear infinite; padding: 20px; border: 4px solid #1E3A8A; border-radius: 12px; background-color: #F0F8FF;}
 @keyframes rainbow {0%{background-position:0% 50%}100%{background-position:100% 50%}}
-
-/* ALL CARDS HAVE THICK BORDERS */
-.card {
-    border: 3px solid #1E3A8A;
-    border-radius: 10px;
-    padding: 20px;
-    margin-bottom: 20px;
-    background-color: #FFFFFF;
-}
-
-/* TABLE WITH BORDERS ON EVERY CELL */
+.card {border: 3px solid #1E3A8A; border-radius: 10px; padding: 20px; margin-bottom: 20px; background-color: #FFFFFF;}
 .stDataFrame {border: 3px solid #1E3A8A!important; border-radius: 8px;}
 thead tr th {background-color: #1E3A8A!important; color: white!important; font-weight: 900!important; border: 2px solid white!important; text-align:center!important;}
 tbody tr td {font-weight: 900!important; border: 1px solid #000!important;}
-
-/* INPUTS WITH BORDERS */
 .stTextInput > div > div > input {border: 2px solid #1E3A8A!important;}
-
-/* BUTTON COLORS + THICK BLACK BORDERS */
-div[data-testid="stButton"] > button, div[data-testid="stDownloadButton"] > button {
-    border: 3px solid black!important;
-    height: 45px;
-    border-radius: 8px;
-    font-weight: 900!important;
-}
+div[data-testid="stButton"] > button, div[data-testid="stDownloadButton"] > button {border: 3px solid black!important; height: 45px; border-radius: 8px; font-weight: 900!important;}
 </style>
 """, unsafe_allow_html=True)
 
 
-# ===== CLEAN DATAFRAME FUNCTION - FIXED NO CRASH =====
+# ===== LOAD/SAVE FUNCTIONS - NEW =====
+def load_data():
+    if os.path.exists(DB_FILE):
+        return pd.read_csv(DB_FILE)
+    else:
+        return pd.DataFrame(columns=["Item", "Quantity", "Unit Price", "Total", "Purpose", "Statute"])
+
+def save_data(df):
+    df.to_csv(DB_FILE, index=False)
+
+# ===== CLEAN DATAFRAME FUNCTION =====
 def clean_df(df):
     if df.empty:
         return df
     df = df.copy()
     df.columns = df.columns.astype(str)
-
-    # DELETE ONLY THE LAST 2 COLUMNS
     if len(df.columns) >= 2:
         df = df.iloc[:, :-2]
-
-    # ONLY RENAME IF WE HAVE EXACTLY 6 COLUMNS
     if len(df.columns) == 6:
         df.columns = ["Item", "Quantity", "Unit Price", "Total", "Purpose", "Statute"]
-
     return df
 
 
 # ===== SESSION STATE =====
 if "df" not in st.session_state:
-    st.session_state.df = pd.DataFrame()
+    st.session_state.df = load_data() # LOAD FROM FILE NOW
 if "admin_mode" not in st.session_state:
     st.session_state.admin_mode = False
 if "failed_files" not in st.session_state:
     st.session_state.failed_files = []
 
 # ===== TITLE =====
-st.markdown('<div class="card"><h1 class="animated-title">MADAM RELINDIS DATABASE SYSTEM</h1></div>',
-            unsafe_allow_html=True)
+st.markdown('<div class="card"><h1 class="animated-title">MADAM RELINDIS DATABASE SYSTEM</h1></div>', unsafe_allow_html=True)
 
 # ===== ALL 5 BUTTONS WITH ACTIONS =====
 st.markdown('<div class="card">', unsafe_allow_html=True)
@@ -139,40 +108,25 @@ if "export_word" in st.session_state and st.session_state.export_word:
     doc = Document()
     section = doc.sections[0]
     section.orientation = WD_ORIENT.LANDSCAPE
-    section.page_width = Inches(11.69);
-    section.page_height = Inches(8.27)
-    section.left_margin = Inches(0.3);
-    section.right_margin = Inches(0.3)
-
+    section.page_width = Inches(11.69); section.page_height = Inches(8.27)
+    section.left_margin = Inches(0.3); section.right_margin = Inches(0.3)
     title = doc.add_heading('MADAM RELINDIS DATABASE REPORT', 0)
     title.alignment = 1
     for run in title.runs: run.font.underline = True; run.font.bold = True
-
     doc.add_paragraph()
     table = doc.add_table(rows=1, cols=len(df_export.columns))
-    table.style = 'Table Grid';
-    table.autofit = False
-
+    table.style = 'Table Grid'; table.autofit = False
     total_width_emu = int(11 * 914400)
     col_width_emu = int(total_width_emu / len(df_export.columns))
     for i in range(len(df_export.columns)): table.columns[i].width = col_width_emu
-
     for i, col in enumerate(df_export.columns):
-        cell = table.cell(0, i);
-        cell.text = str(col);
-        cell.paragraphs[0].alignment = 1
-        for run in cell.paragraphs[0].runs: run.font.bold = True; run.font.size = Pt(8); run.font.color.rgb = RGBColor(
-            255, 255, 255)
-        shading_elm = parse_xml(r'<w:shd {} w:fill="1E3A8A"/>'.format(nsdecls('w')));
-        cell._tc.get_or_add_tcPr().append(shading_elm)
-
+        cell = table.cell(0, i); cell.text = str(col); cell.paragraphs[0].alignment = 1
+        for run in cell.paragraphs[0].runs: run.font.bold = True; run.font.size = Pt(8); run.font.color.rgb = RGBColor(255, 255, 255)
+        shading_elm = parse_xml(r'<w:shd {} w:fill="1E3A8A"/>'.format(nsdecls('w'))); cell._tc.get_or_add_tcPr().append(shading_elm)
     for _, row in df_export.iterrows():
         row_cells = table.add_row().cells
-        for i, item in enumerate(row): cell = row_cells[i]; cell.text = str(item); cell.paragraphs[
-            0].alignment = 1; run = cell.paragraphs[0].add_run(); run.font.size = Pt(8)
-
-    buffer = io.BytesIO();
-    doc.save(buffer)
+        for i, item in enumerate(row): cell = row_cells[i]; cell.text = str(item); cell.paragraphs[0].alignment = 1; run = cell.paragraphs[0].add_run(); run.font.size = Pt(8)
+    buffer = io.BytesIO(); doc.save(buffer)
     st.download_button("Download Word File", buffer.getvalue(), "Report.docx")
     st.session_state.export_word = False
 
@@ -180,20 +134,15 @@ if "export_word" in st.session_state and st.session_state.export_word:
 if "export_pdf" in st.session_state and st.session_state.export_pdf:
     df_export = clean_df(st.session_state.df)
     pdf = FPDF(orientation='L', unit='mm', format='A4')
-    pdf.add_page();
-    pdf.set_font("Arial", 'B', 14)
-    pdf.cell(0, 10, "MADAM RELINDIS DATABASE REPORT", 0, 1, 'C');
-    pdf.ln(3)
-    pdf.set_font("Arial", 'B', 7);
-    col_width = 277 / len(df_export.columns)
+    pdf.add_page(); pdf.set_font("Arial", 'B', 14)
+    pdf.cell(0, 10, "MADAM RELINDIS DATABASE REPORT", 0, 1, 'C'); pdf.ln(3)
+    pdf.set_font("Arial", 'B', 7); col_width = 277 / len(df_export.columns)
     for col in df_export.columns: pdf.cell(col_width, 8, str(col)[:18], 1, 0, 'C')
-    pdf.ln();
-    pdf.set_font("Arial", '', 7)
+    pdf.ln(); pdf.set_font("Arial", '', 7)
     for _, row in df_export.iterrows():
         for item in row: pdf.cell(col_width, 8, str(item)[:18], 1, 0, 'C')
         pdf.ln()
-    buffer = io.BytesIO();
-    pdf.output(buffer)
+    buffer = io.BytesIO(); pdf.output(buffer)
     st.download_button("Download PDF File", buffer.getvalue(), "Report.pdf")
     st.session_state.export_pdf = False
 
@@ -208,7 +157,7 @@ if "view_failed" in st.session_state and st.session_state.view_failed:
     if st.button("Close Failed Files"): st.session_state.view_failed = False; st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ===== ADMIN PANEL =====
+# ===== ADMIN PANEL - UPDATED TO SAVE =====
 if st.session_state.admin_mode:
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.subheader("🔒 Admin Panel")
@@ -225,9 +174,9 @@ if st.session_state.admin_mode:
                             st.session_state.df = raw_df
                         else:
                             st.session_state.df = pd.concat([st.session_state.df, raw_df], ignore_index=True)
+                        save_data(st.session_state.df) # SAVE TO FILE
                         st.success("1 file(s) imported successfully")
-                        st.session_state.admin_mode = False;
-                        st.rerun()
+                        st.session_state.admin_mode = False; st.rerun()
                     except Exception as e:
                         st.session_state.failed_files.append(f"{uploaded_file.name}: {str(e)}")
                         st.error(f"Failed to import {uploaded_file.name}")
@@ -244,8 +193,6 @@ st.markdown('<div class="card">', unsafe_allow_html=True)
 search_term = st.text_input("🔍 Search", placeholder="Type here to search...")
 df_display = clean_df(st.session_state.df)
 if search_term and not df_display.empty:
-    df_display = df_display[
-        df_display.apply(lambda row: row.astype(str).str.contains(search_term, case=False, na=False).any(), axis=1)]
+    df_display = df_display[df_display.apply(lambda row: row.astype(str).str.contains(search_term, case=False, na=False).any(), axis=1)]
 st.dataframe(df_display, use_container_width=True, height=400)
 st.markdown('</div>', unsafe_allow_html=True)
-
