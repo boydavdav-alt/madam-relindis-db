@@ -11,7 +11,7 @@ import io
 import os
 
 ADMIN_PASSWORD = "12"
-DB_FILE = "database.csv" # THIS IS THE KEY - SAVES DATA
+DB_FILE = "database.csv" # SAVES DATA SO ALL PHONES SEE IT
 
 st.set_page_config(page_title="MADAM RELINDIS DATABASE SYSTEM", layout="wide")
 
@@ -30,8 +30,7 @@ div[data-testid="stButton"] > button, div[data-testid="stDownloadButton"] > butt
 </style>
 """, unsafe_allow_html=True)
 
-
-# ===== LOAD/SAVE FUNCTIONS - NEW =====
+# ===== LOAD/SAVE FUNCTIONS =====
 def load_data():
     if os.path.exists(DB_FILE):
         return pd.read_csv(DB_FILE)
@@ -53,25 +52,28 @@ def clean_df(df):
         df.columns = ["Item", "Quantity", "Unit Price", "Total", "Purpose", "Statute"]
     return df
 
-
 # ===== SESSION STATE =====
 if "df" not in st.session_state:
-    st.session_state.df = load_data() # LOAD FROM FILE NOW
+    st.session_state.df = load_data() # LOAD FROM FILE
 if "admin_mode" not in st.session_state:
     st.session_state.admin_mode = False
+if "edit_mode" not in st.session_state:
+    st.session_state.edit_mode = False
 if "failed_files" not in st.session_state:
     st.session_state.failed_files = []
 
 # ===== TITLE =====
 st.markdown('<div class="card"><h1 class="animated-title">MADAM RELINDIS DATABASE SYSTEM</h1></div>', unsafe_allow_html=True)
 
-# ===== ALL 5 BUTTONS WITH ACTIONS =====
+# ===== ALL 6 BUTTONS WITH ACTIONS =====
 st.markdown('<div class="card">', unsafe_allow_html=True)
 col1, col2, col3 = st.columns(3)
 
 with col1:
     if st.button("Import Excel Files", use_container_width=True):
         st.session_state.admin_mode = True
+    if st.button("Edit", use_container_width=True): # NEW EDIT BUTTON
+        st.session_state.edit_mode = True
 
 with col2:
     csv = clean_df(st.session_state.df).to_csv(index=False).encode('utf-8')
@@ -95,9 +97,11 @@ st.markdown('</div>', unsafe_allow_html=True)
 st.markdown("""
 <style>
 div.stButton > button {background: #FF6B35!important; color: white!important;}
-div.stButton > button:nth-of-type(2) {background: #2196F3!important; color: white!important;}
-div.stButton > button:nth-of-type(3) {background: #E91E63!important; color: white!important;}
-div.stButton > button:nth-of-type(4) {background: #FFC107!important; color: black!important;}
+div.stButton > button:nth-of-type(2) {background: #00BFFF!important; color: white!important;} /* EDIT BUTTON BLUE */
+div.stButton > button:nth-of-type(3) {background: #2196F3!important; color: white!important;}
+div.stButton > button:nth-of-type(4) {background: #E91E63!important; color: white!important;}
+div.stButton > button:nth-of-type(5) {background: #FFC107!important; color: black!important;}
+div.stButton > button:nth-of-type(6) {background: #9C27B0!important; color: white!important;}
 div.stDownloadButton > button {background: #4CAF50!important; color: white!important;}
 </style>
 """, unsafe_allow_html=True)
@@ -157,11 +161,11 @@ if "view_failed" in st.session_state and st.session_state.view_failed:
     if st.button("Close Failed Files"): st.session_state.view_failed = False; st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ===== ADMIN PANEL - UPDATED TO SAVE =====
+# ===== ADMIN PANEL - IMPORT =====
 if st.session_state.admin_mode:
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.subheader("🔒 Admin Panel")
-    pwd = st.text_input("Enter Admin Password", type="password")
+    st.subheader("🔒 Admin Panel - Import")
+    pwd = st.text_input("Enter Admin Password", type="password", key="admin_pwd")
     uploaded_file = st.file_uploader("Choose Excel File to Import", type=["xlsx", "xls"])
     col_a, col_b = st.columns(2)
     with col_a:
@@ -186,6 +190,29 @@ if st.session_state.admin_mode:
                 st.error("Wrong password")
     with col_b:
         if st.button("Lock Admin"): st.session_state.admin_mode = False; st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ===== EDIT PANEL =====
+if st.session_state.edit_mode:
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.subheader("✏️ Edit Data - Password Required")
+    edit_pwd = st.text_input("Enter Edit Password", type="password", key="edit_pwd")
+
+    if edit_pwd == ADMIN_PASSWORD:
+        st.success("Access Granted. You can edit directly in the table below")
+        edited_df = st.data_editor(st.session_state.df, num_rows="dynamic", use_container_width=True, key="editor")
+        if st.button("Save Changes"):
+            st.session_state.df = edited_df
+            save_data(st.session_state.df) # SAVE TO FILE
+            st.success("Changes Saved! All phones will now see this data")
+            st.session_state.edit_mode = False
+            st.rerun()
+    elif edit_pwd:
+        st.error("Wrong password")
+
+    if st.button("Close Edit"):
+        st.session_state.edit_mode = False
+        st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ===== SEARCH + TABLE =====
